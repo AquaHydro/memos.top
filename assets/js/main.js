@@ -171,11 +171,30 @@ document.addEventListener('click', function (event) {
         filterElem.style.display = 'block';    // 显示过滤器
         var tagsHtml = 'Filter: ';
         tags.forEach(function(tag) {
-            tagsHtml += `<span class='tag-span'><a rel='noopener noreferrer' href='#${tag}'>#${tag}</a></span> `;
+            tagsHtml += `<span class='tag-span'>
+  <a rel='noopener noreferrer' href='#${tag}'>#${tag}</a>
+  
+    <svg class='remove-tag' data-tag='${tag}' xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 6L6 18"></path>
+      <path d="M6 6l12 12"></path>
+    </svg>
+</span> `;
         });
         var tagsElement = document.getElementById('tags');
         tagsElement.innerHTML = tagsHtml;
         scrollTo(0,0);    // 回到顶部
+
+        // 为每个删除按钮添加事件监听器
+        document.querySelectorAll('.remove-tag').forEach(function(button) {
+            button.addEventListener('click', function(event) {
+                var tagToRemove = event.target.getAttribute('data-tag');
+                tags = tags.filter(function(tag) {
+                    return tag !== tagToRemove;
+                });
+                event.target.closest('.tag-span').remove(); // 移除 tag-span 元素
+                getTagFirstList();
+            });
+        });
     }
 });
 
@@ -395,7 +414,7 @@ function updateHTMl(data) {
 // Memos End
 
 // 解析豆瓣 Start
-// 文章���显示豆瓣条目 https://immmmm.com/post-show-douban-item/
+// 文章中显示豆瓣条目 https://immmmm.com/post-show-douban-item/
 // 解析豆瓣必须要 API，请找朋友要权限，或自己按 https://github.com/eallion/douban-api-rs 这个架设 API，非常简单，资源消耗很少
 // 已内置样式，修改 API 即可使用
 function fetchDB() {

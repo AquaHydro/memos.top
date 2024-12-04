@@ -18,6 +18,11 @@ body.light-theme,
     /* variables for js, must be the same as these in @custom-media queries */
     --phoneWidth: (max-width: 684px);
     --tabletWidth: (max-width: 900px);
+
+    --tag-bg-day: #e0e0e0;
+    --tag-bg-night: #333;
+    --tag-text-day: #000;
+    --tag-text-night: #fff;
 }
 
 body.dark-theme {
@@ -280,6 +285,7 @@ blockquote {
     display: flex;
     font-weight: 700;
     align-items: center;
+    margin-bottom: 0.5rem;
 }
 
 .memos__verify {
@@ -583,6 +589,7 @@ blockquote {
     padding-bottom: 56.25%;
     position: relative;
     width: 100%;
+    margin: 0.5rem 0;
 }
 
 .video-wrapper iframe {

@@ -40,7 +40,7 @@ var page = 1,
     offset = 0,
     nextLength = 0,
     nextDom = '';
-var tag='';
+var tags = []; // 将 tag 修改为 tags 数组
 var nextPageToken = '';
 var btnRemove = 0
 var memoDom = document.querySelector(memo.domId);
@@ -101,23 +101,27 @@ function getFirstList() {
 // 预加载下一页数据
 function getNextList() {
     if (memo.APIVersion === 'new') {
-        var memoUrl_next = memoUrl + '&pageSize=' + limit + '&pageToken=' + nextPageToken;
+        var filter;
+        if (tags.length > 0) {
+            filter = `creator=='users/${memo.creatorId}'&&visibilities==['PUBLIC']&&tag_search == [${tags.map(tag => `"${tag}"`).join(', ')}]`;
+        } else {
+            filter = `creator=='users/${memo.creatorId}'&&visibilities==['PUBLIC']`;
+        }
+        var memoUrl_next = `${memos}/api/v1/memos?filter=${encodeURIComponent(filter)}&pageSize=${limit}&pageToken=${nextPageToken}`;
         fetch(memoUrl_next).then(res => res.json()).then(resdata => {
             nextPageToken = resdata.nextPageToken;
-            nextDom = resdata
-            nextLength = nextDom.length
-            page++
-            offset = limit * (page - 1)
-            if (nextLength < 1) { // 返回数据条数为 0 ，隐藏
-                document.querySelector("button.button-load").remove()
-                btnRemove = 1
-                return
+            nextDom = resdata;
+            nextLength = resdata.memos.length;
+            page++;
+            if (nextLength < 1) {
+                document.querySelector("button.button-load").remove();
+                btnRemove = 1;
+                return;
             }
-        })
-        
+        });
     } else if (memo.APIVersion === 'legacy') {
-        if (tag){
-            var memoUrl_next = memoUrl + "&limit=" + limit + "&offset=" + offset + "&tag=" + tag;
+        if (tags.length > 0) {
+            var memoUrl_next = memoUrl + "&limit=" + limit + "&offset=" + offset + "&tag=" + tags.join(',');
         } else {
             var memoUrl_next = memoUrl + "&limit=" + limit + "&offset=" + offset;
         }
@@ -142,44 +146,72 @@ document.addEventListener('click', function (event) {
     var target = event.target;
     if (target.tagName.toLowerCase() === 'a' && target.getAttribute('href').startsWith('#')) {
         event.preventDefault();
-        tag = target.getAttribute('href').substring(1); // 获取标签名
-        if (btnRemove) {    // 如果 botton 被 remove
+        var selectedTag = target.getAttribute('href').substring(1); // 获取标签名
+        if (!tags.includes(selectedTag)) {
+            tags.push(selectedTag); // 添加到 tags 数组
+        }
+
+        if (btnRemove) {    // 如果按钮被移除
             btnRemove = 0;
             memoDom.insertAdjacentHTML('afterend', load);
-            // 添加 button 事件监听器
             var btn = document.querySelector("button.button-load");
             btn.addEventListener("click", function () {
                 btn.textContent = '努力加载中……';
                 updateHTMl(nextDom)
-                if (nextLength < limit) { // 返回数据条数小于限制条数，隐藏
+                if (nextLength < limit) {
                     document.querySelector("button.button-load").remove()
                     btnRemove = 1
                     return
                 }
                 getNextList()
             });
-            
-        }        
+        }
         getTagFirstList();
         var filterElem = document.getElementById('tag-filter');
         filterElem.style.display = 'block';    // 显示过滤器
-        var tags = document.getElementById('tags');
-        var tagresult = `Filter: <span class='tag-span'><a rel='noopener noreferrer' href=''>#${tag}</a></span>`
-        tags.innerHTML = tagresult;
+        var tagsHtml = 'Filter: ';
+        tags.forEach(function(tag) {
+            tagsHtml += `<span class='tag-span'><a rel='noopener noreferrer' href='#${tag}'>#${tag}</a></span> `;
+        });
+        var tagsElement = document.getElementById('tags');
+        tagsElement.innerHTML = tagsHtml;
         scrollTo(0,0);    // 回到顶部
     }
 });
 
 function getTagFirstList() {
     if (memo.APIVersion === 'new') {
-        console.log('Could not list tag')
+        page = 1;
+        nextPageToken = '';
+        nextLength = 0;
+        nextDom = '';
+        memoDom.innerHTML = "";
+        var filter;
+        if (tags.length > 0) {
+            filter = `creator=='users/${memo.creatorId}'&&visibilities==['PUBLIC']&&tag_search == [${tags.map(tag => `"${tag}"`).join(', ')}]`;
+        } else {
+            filter = `creator=='users/${memo.creatorId}'&&visibilities==['PUBLIC']`;
+        }
+        var memoUrl_tag = `${memos}/api/v1/memos?filter=${encodeURIComponent(filter)}&pageSize=${limit}`;
+        fetch(memoUrl_tag).then(res => res.json()).then(resdata => {
+            updateHTMl(resdata);
+            nextPageToken = resdata.nextPageToken;
+            var nowLength = resdata.memos.length;
+            if (nowLength < limit) {
+                document.querySelector("button.button-load").remove();
+                btnRemove = 1;
+                return;
+            }
+            page++;
+            getNextList();
+        });
     } else if (memo.APIVersion === 'legacy') {
         page = 1;
         offset = 0;
         nextLength = 0;
         nextDom = '';
         memoDom.innerHTML = "";
-        var memoUrl_tag = memoUrl + "&limit=" + limit + "&tag=" + tag;
+        var memoUrl_tag = memoUrl + "&limit=" + limit + "&tag=" + tags.join(',');
         fetch(memoUrl_tag).then(res => res.json()).then(resdata => {
             updateHTMl(resdata);
             var nowLength = resdata.length
@@ -252,42 +284,56 @@ function updateHTMl(data) {
         // 解析内置资源文件
         if (memo.APIVersion === 'new') {
             if (data[i].resources && data[i].resources.length > 0) {
-                var resourceList = data[i].resources; 
-                var imgUrl = '', resUrl = '';
+                var resourceList = data[i].resources;
+                var mediaContent = '';
 
-                imgUrl += '<div class="resource-wrapper"><div class="images-wrapper" style="display: flex; flex-wrap: wrap; gap: 10px;">';
+                mediaContent += '<div class="resource-wrapper"><div class="media-wrapper" style="display: flex; flex-wrap: wrap; gap: 10px; width: 100%">';
 
                 for (var j = 0; j < resourceList.length; j++) {
                     var resType = resourceList[j].type.slice(0, 5);
                     var resexlink = resourceList[j].externalLink;
                     var resLink = '';
                     var filename = resourceList[j].filename;
-                    var name = resourceList[j].name; 
+                    var name = resourceList[j].name;
+                    var element = '';
 
-                    if (resType === 'image') {
-                        if (resexlink) {
-                            imgUrl += '<div class="resimg" style="flex: 1 1 calc(33.33% - 10px); overflow: hidden; position: relative; height: 200px;">' +
-                                '<img loading="lazy" src="' + resexlink + '" style="width: 100%; height: 100%; object-fit: contain; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);"/>' +
-                                '</div>';
-                        } else {
-                            resLink = memos + '/file/' + name + '/' + filename;
-                            imgUrl += '<div class="resimg" style="flex: 1 1 calc(33.33% - 10px); overflow: hidden; position: relative; height: 200px;">' +
-                                '<img loading="lazy" src="' + resLink + '" style="width: 100%; height: 100%; object-fit: contain; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);"/>' +
-                                '</div>';
-                        }
+                    if (resexlink) {
+                        resLink = resexlink;
                     } else {
                         resLink = memos + '/file/' + name + '/' + filename;
-                        resUrl += '<a target="_blank" rel="noreferrer" href="' + resLink + '">' + filename + '</a>';
                     }
+
+                    if (resType === 'image') {
+                        element = '<div class="media-item" style="flex: 1 1 calc(33.33% - 10px); max-height: 340px; overflow: hidden;">' +
+                            '<img loading="lazy" src="' + resLink + '" style="width: 100%; height: 100%; object-fit: cover;"/>' +
+                            '</div>';
+                    } else if (resType === 'video') {
+                        var playerId = 'dplayer-' + uId + '-' + j;
+                        element = '<div class="media-item" style="flex: 1 1 calc(33.33% - 10px); max-height: 340px; overflow: hidden;">' +
+                            '<div id="' + playerId + '" class="dplayer" style="height: 100%; width: 100%; object-fit: contain;"></div>' +
+                            '</div>';
+
+                        (function(playerId, resLink) {
+                            setTimeout(function() {
+                                new DPlayer({
+                                    container: document.getElementById(playerId),
+                                    video: {
+                                        url: resLink,
+                                    },
+                                });
+                            }, 0);
+                        })(playerId, resLink);
+                    } else {
+                        element = '<a target="_blank" rel="noreferrer" href="' + resLink + '">' + filename + '</a>';
+                    }
+
+                    mediaContent += element;
                 }
 
-                imgUrl += '</div></div>'; 
+                mediaContent += '</div></div>';
 
-                if (imgUrl) {
-                    memoContREG += imgUrl;
-                }
-                if (resUrl) {
-                    memoContREG += '<div class="resource-wrapper"><p class="datasource">' + resUrl + '</p></div>';
+                if (mediaContent) {
+                    memoContREG += mediaContent;
                 }
             }
         } else if (memo.APIVersion === 'legacy') {
@@ -349,7 +395,7 @@ function updateHTMl(data) {
 // Memos End
 
 // 解析豆瓣 Start
-// 文章内显示豆瓣条目 https://immmmm.com/post-show-douban-item/
+// 文章���显示豆瓣条目 https://immmmm.com/post-show-douban-item/
 // 解析豆瓣必须要 API，请找朋友要权限，或自己按 https://github.com/eallion/douban-api-rs 这个架设 API，非常简单，资源消耗很少
 // 已内置样式，修改 API 即可使用
 function fetchDB() {
